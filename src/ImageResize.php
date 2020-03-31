@@ -1,4 +1,5 @@
 <?php
+
 namespace Mxmm\ImageResize;
 
 use Intervention\Image\Facades\Image;
@@ -45,9 +46,14 @@ class ImageResize
      * @param string $action
      * @return string
      */
-    public static function url(string $path = null, int $width = null, int $height = null, string $action = 'fit'): string
+    public static function url(string $path = null, int $width = null, int $height = null, string $action = 'fit', $drive): string
     {
-        return (new ImageResize(config('image-resize'), $path))->getResizedImage($path, $width, $height, $action);
+        return (new ImageResize(config('image-resize'), $path))->getResizedImage($path, $width, $height, $action, $drive);
+    }
+
+    public static function asset(string $path = null, int $width = null, int $height = null, string $action = 'fit'): string
+    {
+        return (new ImageResize(config('image-resize'), $path))->getResizedImage($path, $width, $height, $action, true, 'assets');
     }
 
     public static function path(string $path = null, int $width = null, int $height = null, string $action = 'fit'): string
@@ -55,13 +61,13 @@ class ImageResize
         return (new ImageResize(config('image-resize'), $path))->getResizedImage($path, $width, $height, $action, false);
     }
 
-    private function getResizedImage(string $path = null, int $width = null, int $height = null, string $action = 'fit', $url = true): string
+    private function getResizedImage(string $path = null, int $width = null, int $height = null, string $action = 'fit', $url = true, $drive = null): string
     {
         if (!$path || $width < 1 && $height < 1) {
             return '';
         }
 
-        $this->settings($width, $height, $action);
+        $this->settings($width, $height, $action, $drive);
 
         if (!$this->setTargetMetaData()) {
             return '';
@@ -76,12 +82,12 @@ class ImageResize
         return $url === true ? $this->getUrl() : $this->targetPath;
     }
 
-    private function settings(int $width = null, int $height = null, $action = 'fit'): ImageResize
+    private function settings(int $width = null, int $height = null, $action = 'fit', $drive): ImageResize
     {
         $this->width    = $width;
         $this->height   = $height;
         $this->action   = $action;
-        $this->adapter  = Storage::getAdapter();
+        $this->adapter  = $drive && config('filesystems.disks.' . $drive) ? Storage::disk($drive)->getAdapter() :  Storage::getAdapter();
         $this->setTargetPath();
 
         if (Cache::has($this->targetPath)) {
