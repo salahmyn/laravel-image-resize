@@ -51,6 +51,11 @@ class ImageResize
         return (new ImageResize(config('image-resize'), $path))->getResizedImage($path, $width, $height, $action, $drive);
     }
 
+    public static function asset(string $path = null, int $width = null, int $height = null, string $action = 'fit'): string
+    {
+        return (new ImageResize(config('image-resize'), $path))->getResizedImage($path, $width, $height, $action, true, 'assets');
+    }
+
     public static function path(string $path = null, int $width = null, int $height = null, string $action = 'fit'): string
     {
         return (new ImageResize(config('image-resize'), $path))->getResizedImage($path, $width, $height, $action, false);
