@@ -27,16 +27,18 @@ class ImageResize
     private $height;
     private $basename;
     private $adapter;
+    private $drive;
     private $targetPath;
     private $targetMetaData = [];
     private $targetTimestamp;
     private $sourceTimestamp;
 
-    public function __construct(array $config, string $path = null)
+    public function __construct(array $config, string $path = null, $drive = null)
     {
         $this->config       = $config;
         $this->path         = $path;
         $this->basename     = pathinfo($this->path)['basename'];
+        $this->drive        = $drive ?? config('filesystems.default');
     }
 
     /**
@@ -48,12 +50,12 @@ class ImageResize
      */
     public static function url(string $path = null, int $width = null, int $height = null, string $action = 'fit', $drive): string
     {
-        return (new ImageResize(config('image-resize'), $path))->getResizedImage($path, $width, $height, $action, $drive);
+        return (new ImageResize(config('image-resize'), $path, $drive))->getResizedImage($path, $width, $height, $action);
     }
 
     public static function asset(string $path = null, int $width = null, int $height = null, string $action = 'fit'): string
     {
-        return (new ImageResize(config('image-resize'), $path))->getResizedImage($path, $width, $height, $action, true, 'assets');
+        return self::url($path, $width, $height, $action, 'assets');
     }
 
     public static function path(string $path = null, int $width = null, int $height = null, string $action = 'fit'): string
@@ -87,7 +89,8 @@ class ImageResize
         $this->width    = $width;
         $this->height   = $height;
         $this->action   = $action;
-        $this->adapter  = $drive && config('filesystems.disks.' . $drive) ? Storage::disk($drive)->getAdapter() :  Storage::getAdapter();
+        $this->adapter  = Storage::disk($this->drive)->getAdapter();
+
         $this->setTargetPath();
 
         if (Cache::has($this->targetPath)) {
@@ -107,7 +110,7 @@ class ImageResize
 
         $targetDirName       = $this->config['dir'];
         $targetDirName      .= $dirName !== '.' && $dirName !== '/' ? ltrim($dirName, '/') . '/' : '';
-        $targetDirName      .= $this->action . '/' . $this->width . 'x' . $this->height . '/';
+        $targetDirName      .= $this->drive . '/' . $this->action . '/' . $this->width . 'x' . $this->height . '/';
         $this->targetPath    = $targetDirName . $this->basename;
 
         return $this;
@@ -120,10 +123,10 @@ class ImageResize
         }
 
         try {
-            $this->targetMetaData  = Storage::getMetadata($this->targetPath);
+            $this->targetMetaData  = Storage::disk($this->drive)->getMetadata($this->targetPath);
             $this->targetTimestamp = $this->setTimestamp($this->targetPath, $this->targetMetaData);
         } catch (Exception $e) {
-            if (!$this->adapter instanceof LocalAdapter && !Storage::exists($this->path)) {
+            if (!$this->adapter instanceof LocalAdapter && !Storage::disk($this->drive)->exists($this->path)) {
                 if (!Storage::disk('public')->exists($this->path)) {
                     return false;
                 }
@@ -156,7 +159,7 @@ class ImageResize
     private function setSourceTimestamp(): bool
     {
         try {
-            $sourceMetaData = Storage::getMetadata($this->path);
+            $sourceMetaData = Storage::disk($this->drive)->getMetadata($this->path);
         } catch (Exception $e) {
             return false;
         }
@@ -172,7 +175,7 @@ class ImageResize
         } elseif ($this->adapter instanceof AwsS3Adapter) {
             $url = $this->getAwsUrl();
         } elseif ($this->adapter instanceof LocalAdapter) {
-            $url = Storage::url($this->targetPath);
+            $url = Storage::disk($this->drive)->url($this->targetPath);
         } else {
             $url = '';
         }
@@ -189,7 +192,7 @@ class ImageResize
         $endpoint = $this->adapter->getClient()->getEndpoint();
         $path     =  '/' . ltrim($this->adapter->getPathPrefix() . $this->targetPath, '/');
 
-        if (!is_null($domain = Storage::getConfig()->get('url'))) {
+        if (!is_null($domain = Storage::disk($this->drive)->getConfig()->get('url'))) {
             $url = rtrim($domain, '/') . $path;
         } else {
             $url  = $endpoint->getScheme() . '://' . $this->adapter->getBucket() . '.' . $endpoint->getHost() . $path;
@@ -213,13 +216,13 @@ class ImageResize
             case 'fit':
             case 'resize':
                 try {
-                    $image = Image::make(Storage::get($this->path))
+                    $image = Image::make(Storage::disk($this->drive)->get($this->path))
                         ->{$this->action}($this->width, $this->height, function ($constraint) {
                             $constraint->aspectRatio();
                             $constraint->upsize();
-                        })->encode(Storage::mimeType($this->path));
+                        })->encode(Storage::disk($this->drive)->mimeType($this->path));
 
-                    $this->upload($this->targetPath, (string) $image, Storage::mimeType($this->path));
+                    $this->upload($this->targetPath, (string) $image, Storage::disk($this->drive)->mimeType($this->path));
                 } catch (Exception $e) {
                     return false;
                 }
@@ -247,7 +250,7 @@ class ImageResize
         if (in_array($info['extension'], ['mp4', 'webm'])) {
             $url = asset('/vendor/laravel-image-resize/images/placeholders/video.svg');
         } elseif (in_array($info['extension'], ['svg'])) {
-            $url = Storage::url($path);
+            $url = Storage::disk($this->drive)->url($path);
         } else {
             $url = asset('/vendor/laravel-image-resize/images/placeholders/file.svg');
         }
