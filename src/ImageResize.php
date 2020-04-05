@@ -48,7 +48,7 @@ class ImageResize
      * @param string $action
      * @return string
      */
-    public static function url(string $path = null, int $width = null, int $height = null, string $action = 'fit', $drive): string
+    public static function url(string $path = null, int $width = null, int $height = null, string $action = 'fit', $drive = null): string
     {
         return (new ImageResize(config('image-resize'), $path, $drive))->getResizedImage($path, $width, $height, $action);
     }
