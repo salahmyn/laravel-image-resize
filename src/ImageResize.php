@@ -236,7 +236,7 @@ class ImageResize
 
     private function upload($path, $image, $contentType)
     {
-        Storage::getDriver()->put($path, $image, [
+        Storage::disk($this->drive)->put($path, $image, [
             'visibility'         => 'public',
             'Expires'            => gmdate('D, d M Y H:i:s', time() + $this->config['browser-cache']) . ' GMT',
             'CacheControl'       => 'public, max-age=' . $this->config['browser-cache'],
